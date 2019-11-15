@@ -8,6 +8,7 @@ import axios from 'axios'
 import ElementUI from 'element-ui';
 import 'element-ui/lib/theme-chalk/index.css';
 import global_ from './public/global'//引用文件
+import 'video.js/dist/video-js.css'
 Vue.prototype.global = global_
 
 
