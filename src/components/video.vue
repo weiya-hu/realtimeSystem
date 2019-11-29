@@ -1,20 +1,34 @@
 <template>
-	<div class="videoVue">
-		<div class="left">
-			<div class="select">
+	<div class="videoVue" id="videocont">
+		<div class="left" :style="{height: height+'px'}">
+			<div class="select flex">
 				<el-radio v-model="radio" label="1" @change='selectchange'>常规列表</el-radio>
   				<el-radio v-model="radio" label="2" @change='selectchange'>3D列表</el-radio>
 			</div>
-			<div id="list">
-				<el-tree :data="list" :props="defaultProps" @node-click="handleNodeClick"></el-tree>
+			<div id="list " class="list">
+				<div v-for="(item,indx) in list">
+					<div class="listpre flexl"  @click="handlelistpre(item,indx)" :class="item.active?'itemsontxtactive':''">
+						<div  class="fleximg" style="flex: 1;">
+							<div v-if="item.children && item.children.length>0" class="righticon" :class="item.ispull?'righticonxiala':''">
+								<img src="../assets/righticon.png"/>
+							</div>
+						</div>
+						<div class="listpretxt">{{item.name}}</div>
+					</div>
+					<div class="itemxiala" v-for="(itemson,index) in item.children" @click="handleNodeClick(itemson,indx,index)">
+						<div class="itemsontxt" :class="[item.ispull?'itemsontxtxiala':'',itemson.state==='未知'?'itemsontxtwarn':'',itemson.state==='离线'?'itemsontxtno':'',itemson.isactive?'itemsontxtactive':'']" >
+							{{itemson.name}}
+						</div>
+					</div>
+				</div>
 			</div>
 		</div>
-		<div class="right" :class="show3d?'':'width'">
-			<iframe src="http://www.cqkaijin.com/Production_17-1/App_cesium/" width="100%" :height="height"></iframe>
+		<div class="right"  v-if="show3d">
+			<iframe :src="list[num3d].vraddress" :height="height" allowfullscreen="true" allowtransparency="true" style="width: 100%;position: relative;z-index: 999999;"></iframe>
 		</div>
 		<div class="right" :class="show3d?'width':''">
 			<div  ref='video'> 
-			   <video id="videobox" class="video-js vjs-default-skin vjs-big-play-centered " controls preload="auto" webkit-playsinline="true" playsinline="true" type="application/x-mpegURL"   width='100%' ref='videoRef' x5-video-player-fullscreen="true" :poster="posterSrc"  allowsInlineMediaPlayback=YES  webview.allowsInlineMediaPlayback=YES>
+			   <video id="videobox" class="video-js vjs-default-skin vjs-big-play-centered " controls webkit-playsinline="true" playsinline="true" type="application/x-mpegURL"   width='100%' ref='videoRef' x5-video-player-fullscreen="true" :poster="posterSrc"  allowsInlineMediaPlayback=YES  webview.allowsInlineMediaPlayback=YES>
 			      <source id="sourceBox" :src="videoSrc">
 			      <p class="vjs-no-js">不支持播放</p>
 			   </video>
@@ -24,10 +38,7 @@
 				<img src="../assets/loading.gif"/>
 			</div>
 		</div>
-		
-		
 	</div>
-	
 </template>
 
 <script>
@@ -48,8 +59,10 @@ export default {
    		isError:false,
    		loadingshow:false,//加载中是否显示
    		show3d:false,//3d页面是否显示
+   		height:'',//页面高度
+   		num3d:0//3d的选中项下标
     }
-  },
+  }, 
   mounted(){ 
       this.list=this.getnormlist();
       this.get3dlist()
@@ -94,9 +107,29 @@ export default {
   		let that=this
   		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getVideoTree',{username:'admin'}).then(res=>{
   			if(res.data.code===200){
-				that.list=res.data.result
-				localStorage.setItem("listnorm",JSON.stringify(res.data.result));
-				return res.data.result
+  				let arr=res.data.result
+  				//给常规list下每一项添加ispull=false，开始都没有下拉，ispull=true当前项下拉
+  				for(let i=0,l=arr.length;i<l;i++){
+  					arr[i].ispull=false
+  					if(arr[i].children.length>0){
+  						//给常规list下每一项的children添加isactive=false，isactive=true的时候是被选中的状态
+  						for(let j=0,th=arr[i].children.length;j<th;j++){
+  							arr[i].children[j].isactive=false
+  							if(arr[i].children[j].id==='487c2af612b234df44216b82607f81bf'){
+  								//默认有打开一个视频，自认默认项有下拉，默认项又被选中的状态
+	  							arr[i].ispull=true
+	  							arr[i].children[j].isactive=true
+	  						}
+  						}
+  						
+  					}
+  				}
+  				
+				that.list=arr
+				//存入内存，下次点击切换先查看内存中是否有，没有才请求接口获取
+				localStorage.setItem("listnorm",JSON.stringify(arr));
+				console.log(arr)
+				return arr
   			}
   		}).catch(function (error){
           console.log(error)
@@ -107,10 +140,16 @@ export default {
   		let that=this
   		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getBidsectionList',{username:'admin',identify:'thingjs'}).then(res=>{
   			if(res.data.code===200){
-//				that.list=res.data.result;
-  				console.log(that.list)
-  				localStorage.setItem("list3d",JSON.stringify(res.data.result));
-  				return res.data.result
+				console.log(res.data.result)
+				let arr=res.data.result;
+				//3dlist里面默认每一项都没有选中，active=true为选中状态
+				for(let i=0,l=arr.length;i<l;i++){
+					arr[i].active=false
+				}
+				//因为当前只有一个3d示例，所以暂时列第一个为默认选中项
+				arr[0].active=true;
+  				localStorage.setItem("list3d",JSON.stringify(arr));
+  				return arr                                       
   			}
   		}).catch(function (error){
           console.log(error)
@@ -119,20 +158,20 @@ export default {
   	//radio==='2'为3d，'1'为常规默认
   	selectchange(){
   		let that=this;
-  		if(this.radio==='2'){
+  		console.log(this.radio)
+		if(this.radio==='2'){
 			this.show3d=true
-  			//如果缓存中存在取缓存的list，没有久接口获取
-  			
-  			let list3d=localStorage.getItem("list3d")
-  			console.log(list3d)
-  			if (list3d){
-  				this.list=JSON.parse(list3d)
-  				console.log(this.list)
-  			}else{
-  				this.list=this.get3dlist()
-  				console.log(this.list)
-  			}
-  		}else if(this.radio==='1'){
+			//如果缓存中存在取缓存的list，没有久接口获取
+			
+			let list3d=localStorage.getItem("list3d")
+			if (list3d){
+				this.list=JSON.parse(list3d)
+				console.log(this.list)
+			}else{
+				this.list=this.get3dlist()
+				console.log(this.list)
+			}
+		}else if(this.radio==='1'){
 			this.show3d=false
 			
 			this.$nextTick(()=>{
@@ -142,90 +181,134 @@ export default {
 	    	})
 			
 	        
-  			let listnorm=localStorage.getItem("listnorm")
-  			if (listnorm){
-  				this.list=JSON.parse(listnorm)
-  				console.log(this.list)
-  			}else{
-  				this.list=this.getnormlist()
-  				console.log(this.list)
-  			}
-  			
-  		}
+			let listnorm=localStorage.getItem("listnorm")
+			if (listnorm){
+				this.list=JSON.parse(listnorm)
+				console.log(this.list)
+			}else{
+				this.list=this.getnormlist()
+				console.log(this.list)
+			}
+			
+		}
+		console.log(this.list)
   	},
-  	handleNodeClick(data) {
-  		console.log(data)
-  		if(!data.projectId){  
-//			this.show3d=false
-  			
-	        const videoDom = this.$refs.videoRef;
-	        videojs(videoDom).pause()//
-	        this.loadingshow=true;
-	        this.isError=false;
-	        videojs(videoDom).currentTime(0);
-	        let that=this
-	  		this.$http.post(that.global.domainurl+'/jeecg-boot/infrastructure/video/videoAddress',{videoId:data.id}).then(res=>{
-	  			console.log(res)
-	  			this.loadingshow=false
-				if(res.data.code===200){
-					this.$message({
-			            showClose: true,
-			            message: '视频地址获取成功',
-			            type: 'success'
-			        });
-					videojs(videoDom).src(res.data.result)
-					videojs(videoDom).load();
-					videojs(videoDom).play();
-					setTimeout(() => {   //延时确保能监听到视频源错误
-		                var mediaError = videojs(videoDom).error();
-		                if(mediaError!=null && mediaError.code){
-		                    that.isError=true
-		                }
-		            },1000);
-				}else if(res.data.code===500){
-					this.$message({
-			            showClose: true,
-			            message: res.data.message,
-			            type: 'error'
-			        });
+  	//
+  	handleNodeClick(data,indx,index) {
+  		let arr=this.list;
+  		for(let i=0,l=arr.length;i<l;i++){
+			if(arr[i].children.length>0){
+				for(let j=0,th=arr[i].children.length;j<th;j++){
+					arr[i].children[j].isactive=false
 				}
-	  		}).catch(function (error){
-	          console.log(error)
-	        })
-  		}else{
-  			if(data.children){
-//				this.show3d=false
-  				if(data.children.length===0){
-	  				this.$message({
-			            showClose: true,
-			            message: '此工地咱无视频监控'
-			        });
-	  			}
-  			}else{
-//				this.show3d=true
-  			}
-  			
-  		}
+			}
+		}
+  		arr[indx].children[index].isactive=true
+  		this.list=arr;
+  		console.log(data)
+        const videoDom = this.$refs.videoRef;
+        videojs(videoDom).pause()
+        this.loadingshow=true;
+        this.isError=false;
+        videojs(videoDom).currentTime(0);
+        let that=this
+  		this.$http.post(that.global.domainurl+'/jeecg-boot/infrastructure/video/videoAddress',{videoId:data.id}).then(res=>{
+  			console.log(res)
+  			this.loadingshow=false
+			if(res.data.code===200){
+				this.$message({
+		            showClose: true,
+		            message: '视频地址获取成功',
+		            type: 'success'
+		        });
+				videojs(videoDom).src(res.data.result)
+				videojs(videoDom).load();
+				videojs(videoDom).play();
+				setTimeout(() => {   //延时确保能监听到视频源错误
+	                var mediaError = videojs(videoDom).error();
+	                if(mediaError!=null && mediaError.code){
+	                    that.isError=true
+	                }
+	            },1000);
+			}else if(res.data.code===500){
+				this.$message({
+		            showClose: true,
+		            message: res.data.message,
+		            type: 'error'
+		        });
+			}
+  		}).catch(function (error){
+          console.log(error)
+       })
+
      },
     videoHeight(){
     	this.$nextTick(()=>{
     		console.log(this.$refs.video)
 			let vidoeWidth=this.$refs.video.clientWidth;
 			this.$refs.video.style.height = vidoeWidth*0.54+'px';
-			this.height=document.body.clientHeight
+			this.height=window.innerHeight
     	})
 
-	}
-  }
+	},
+	//点击隧道
+    handlelistpre(item,indx){
+    	console.log(item)
+    	//点击常规隧道项，因为常规隧道都没有children
+    	if(item.children){
+//				this.show3d=false
+			if(item.children.length===0){
+  				this.$message({
+		            showClose: true,
+		            message: '此工地暂无视频监控'
+		        });
+  			}else if(item.children.length>0){
+	    		let list=this.list
+	    		list[indx].ispull=!list[indx].ispull
+	    		localStorage.setItem("listnorm",JSON.stringify(list));
+	    		this.list=list
+	    	}
+  		//点击3d隧道，因为3d隧道都没有children，现在点击3d隧道暂没有切换3d视图的功能，因为现在只有一个3d视图，点击其他都是提示‘此隧道暂没有3d视图’
+		}else{
+			let arr=this.list;
+			for(let i=0,l=arr.length;i<l;i++){
+				arr[i].active=false
+			}
+			arr[indx].active=true
+			this.lis=arr;
+			this.num3d=indx
+		}
+    	
+    }
+  },
+  
 }
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 .videoVue{display: flex;justify-content: flex-start;align-items: flex-start;}
-.left{width:220px;padding:0 10px;border-right: 1px solid #eee;}
-.right{width: 100%;padding:0 10px;position: relative;}
-.select{border: 1px solid #eee;}
+/*list*/
+.listpre{padding: 3px 0 3px 5px;cursor: pointer;}
+.listpre:hover{background-color: #F5F7FA;}
+.left{width:250px;padding:0 5px 10px 10px;border-right: 1px solid #eee;border-bottom: 1px solid #eee;overflow: scroll;
+	box-sizing: border-box;margin-right: 5px;}
+.list{overflow-y: scroll;overflow-x: auto;}
+::-webkit-scrollbar{display: none;}
+.listpretxt{font-size: 14px;overflow: hidden;text-overflow:ellipsis;white-space: nowrap;flex: 10;text-align: left;color: #606266;}
+.righticon{width: 9px;overflow: hidden;margin-right: 2px;transition: all 0.3s linear;}
+.itemsontxt{color: #606266;font-size: 14px;padding: 0 0 0 35px;overflow: hidden;text-overflow:ellipsis;white-space: nowrap;cursor: pointer;
+	height: 0;opacity: 0;transition: all 0.3s linear;}
+.itemsontxtactive{background-color: #F5F7FA;}
+
+.itemsontxtno{color: rgba(144,147,153,0.5);}
+.itemsontxtwarn{color:rgb(230, 162, 60,0.6) ;}
+#videocont .itemsontxtxiala{height: 25px;line-height: 25px;opacity: 1;}
+#videocont .righticonxiala{transform: rotate(90deg);}
+.itemsontxt:hover{background-color: #F5F7FA;}
+/*list*/
+.right{width: 100%;position: relative;}
+.select{border: 1px solid #eee;width: 200px;padding: 0 10px;box-sizing: border-box;}
 #videobox{width: 100%;height:100%;}
 .loading{position: absolute;top: 50%;left: 50%;transform: translateX(-50%) translateY(-50%);width: 45px;}
 .errorTip{position: absolute;top: 50%;left: 50%;transform: translateX(-50%) translateY(-50%);padding: 15px 30px;background: #EEEEEE;border-radius: 6px;}

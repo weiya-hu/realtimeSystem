@@ -2,13 +2,13 @@
 	<div class="">
 		<el-button type="text" @click="open">点击打开 Message Box</el-button>
 		<div class="" @click="tovideo">tovideo</div>
-		
+		<div class="" @click="toenvir">toenvir</div>
 	</div>
 </template>
 
 <script>
 export default {
-  name: 'HelloWorld',
+  name: 'Home',
   data () {
     return {
       msg: 'Welcome to Your Vue.js App'
@@ -18,6 +18,14 @@ export default {
   	tovideo(){
   		this.$router.push({
         path:'/video',
+        query:{
+          
+        }
+      })
+  	},
+  	toenvir(){
+  		this.$router.push({
+        path:'/envir',
         query:{
           
         }
