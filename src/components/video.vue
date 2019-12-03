@@ -205,6 +205,7 @@ export default {
 		}
   		arr[indx].children[index].isactive=true
   		this.list=arr;
+  		localStorage.setItem("listnorm",JSON.stringify(arr));
   		console.log(data)
         const videoDom = this.$refs.videoRef;
         videojs(videoDom).pause()
@@ -298,7 +299,7 @@ export default {
 .listpretxt{font-size: 14px;overflow: hidden;text-overflow:ellipsis;white-space: nowrap;flex: 10;text-align: left;color: #606266;}
 .righticon{width: 9px;overflow: hidden;margin-right: 2px;transition: all 0.3s linear;}
 .itemsontxt{color: #606266;font-size: 14px;padding: 0 0 0 35px;overflow: hidden;text-overflow:ellipsis;white-space: nowrap;cursor: pointer;
-	height: 0;opacity: 0;transition: all 0.3s linear;}
+	height: 0;opacity: 0;transition: all 0.3s linear;text-align: left;}
 .itemsontxtactive{background-color: #F5F7FA;}
 
 .itemsontxtno{color: rgba(144,147,153,0.5);}

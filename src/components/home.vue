@@ -1,6 +1,5 @@
 <template>
 	<div class="">
-		<el-button type="text" @click="open">点击打开 Message Box</el-button>
 		<div class="" @click="tovideo">tovideo</div>
 		<div class="" @click="toenvir">toenvir</div>
 	</div>

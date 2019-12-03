@@ -1,5 +1,5 @@
 <template>
-	<div class="videoVue" id="videocont">
+	<div class="videoVue" id="envircont">
 		<div class="left" :style="{height: height+'px'}">
 			<div class="select flex">
 				<el-radio v-model="radio" label="1" @change='selectchange'>常规列表</el-radio>
@@ -28,11 +28,16 @@
 		</div>
 		<div class="right flexl" :class="show3d?'width':''">
 			<div class="righttop flexl">
-				<div class="righttopson " v-for="(item,indx) in righttop">{{item.name}}</div>
+				<div class="righttopson " :class="indx==num?'righttopsonactive':''" v-for="(item,indx) in righttop" @click="changeRightTop(item,indx)">{{item.name}}</div>
 			</div>
 			<div class="chartpre">
-				<div style="width: 500px;" v-for="(itemson,index) in chartidlist">
-					<div :id="chartidlist[index]" :style="{ height: '300px',width:'500px'}" :ref='chartidlist[index]'></div>
+				<div class="chartitem" style="width: 550px;" v-for="(itemson,index) in chartidlist">
+					<div :id="chartidlist[index]" :style="{ height: '300px',width:'550px'}" :ref='chartidlist[index]'></div>
+					<el-date-picker value-format='yyyy-MM-dd'  v-model="values[index]" align="right" type="date" placeholder="选择日期" :picker-options="pickerOptions" class='datepicker' @change='datechange(itemson,index)'></el-date-picker>
+					<div class="datenodata" v-if="isnodata[index]">当前所选择日期暂无数据</div>
+					<div class="current">
+						当前值：{{res.data.result[num].values[index].value}} {{res.data.result[num].values[index].unit=='无'?'':res.data.result[num].values[index].unit}}
+					</div>
 				</div>
 			</div>
 
@@ -56,16 +61,45 @@
 				num3d: 0, //3d的选中项下标
 				righttop: [], //chart数据
 				chartlist: [],
-				chartidlist: []
+				num:0,
+				chartidlist: [],
+				pickerOptions: {
+					disabledDate(time) {
+						return time.getTime() > Date.now();
+					},
+					shortcuts: [{
+						text: '今天',
+						onClick(picker) {
+							picker.$emit('pick', new Date());
+						}
+					}, {
+						text: '昨天',
+						onClick(picker) {
+							const date = new Date();
+							date.setTime(date.getTime() - 3600 * 1000 * 24);
+							picker.$emit('pick', date);
+						}
+					}, {
+						text: '一周前',
+						onClick(picker) {
+							const date = new Date();
+							date.setTime(date.getTime() - 3600 * 1000 * 24 * 7);
+							picker.$emit('pick', date);
+						}
+					}]
+				},
+				values: [],//各个chart的日期
+				value: '',
+				isnodata:[],//每个chart是否显示无数据
+				currentdate:'',//当前日期
 			}
 		},
 		mounted() {
 			//执行下面的函数
 			this.list = this.getnormlist();
 			this.get3dlist()
-
+			this.value=new Date()
 		},
-		beforeDestroy() {},
 		created() {
 			this.chartstart()
 			window.removeEventListener('resize', this.videoHeight())
@@ -102,7 +136,6 @@
 						that.list = arr
 						//存入内存，下次点击切换先查看内存中是否有，没有才请求接口获取
 						localStorage.setItem("listnormEnvir", JSON.stringify(arr));
-
 						return arr
 					}
 				}).catch(function(error) {
@@ -118,7 +151,6 @@
 					menu: '环境监测'
 				}).then(res => {
 					if(res.data.code === 200) {
-						console.log(res.data.result)
 						let arr = res.data.result;
 						//3dlist里面默认每一项都没有选中，active=true为选中状态
 						for(let i = 0, l = arr.length; i < l; i++) {
@@ -136,28 +168,22 @@
 			//radio==='2'为3d，'1'为常规默认
 			selectchange() {
 				let that = this;
-				console.log(this.radio)
 				if(this.radio === '2') {
 					this.show3d = true
 					//如果缓存中存在取缓存的list，没有久接口获取
-
 					let list3d = localStorage.getItem("list3d")
 					if(list3d) {
 						this.list = JSON.parse(list3d)
-						console.log(this.list)
 					} else {
 						this.list = this.get3dlist()
-						console.log(this.list)
 					}
 				} else if(this.radio === '1') {
 					this.show3d = false
 					let listnorm = localStorage.getItem("listnormEnvir")
 					if(listnorm) {
 						this.list = JSON.parse(listnorm)
-						console.log(this.list)
 					} else {
 						this.list = this.getnormlist()
-						console.log(this.list)
 					}
 
 				}
@@ -165,8 +191,8 @@
 			},
 			//点击隧道下的节点，data参数为当前节点项的各种数据
 			handleNodeClick(data, indx, index) {
-				let arr = this.list,
-					that = this;
+				let arr = this.list,that = this;
+				this.num=0;
 				//让其他节点都为不active
 				for(let i = 0, l = arr.length; i < l; i++) {
 					if(arr[i].children.length > 0) {
@@ -178,19 +204,15 @@
 				//设置点击的那个为active
 				arr[indx].children[index].isactive = true
 				this.list = arr;
+				localStorage.setItem("listnormEnvir", JSON.stringify(arr));
 				this.loadingshow = true;
 				this.$http.post(that.global.domainurl + '/jeecg-boot/air/environmentalmonitoring', {
 					engineeringId: data.id
 				}).then(res => {
-					console.log(res)
 					this.loadingshow = false
-					that.righttop = res.data.result
 					if(res.data.code === 0) {
-						for(let i = 0, l = res.data.result.length; i < l; i++) {
-
-							console.log(that.righttop)
-
-						}
+						that.res=res
+						that.changecharts(res)
 					} else if(res.data.code === 500) {
 						this.$message({
 							showClose: true,
@@ -203,28 +225,91 @@
 				})
 
 			},
+			//切换数据
+			changecharts(res){
+				this.righttop = res.data.result;
+				let chartidlist = [],isnodata=[],values=[],that=this;
+				let currentdate=that.getdate()
+				//这里才能确定展示多少个chart
+				for(let i = 0, n = res.data.result[that.num].values.length; i < n; i++) {
+					var name = "myChart" + i; //生成函数名						
+					chartidlist.push("myChart" + i);//生成每个chart的id
+					isnodata.push(false);//默认确定每个chart的没有数据项不展示
+					values.push(currentdate);
+				}
+				//这一步确定有多少个chart
+				that.chartidlist = chartidlist;
+				that.values=values;
+				that.isnodata=isnodata;
+				that.currentdate=currentdate;
+				that.$nextTick(() => {
+					that.drawLine(res.data.result[that.num].values.length);
+					//默认进来先进入鸡鸣隧道出口的第一个（出口值班室） 的数据，所以是res.data.result[0]，注意以后会不会更改
+					for(let i = 0, l = res.data.result[that.num].values.length; i < l; i++) {
+						let name = "myChart" + i; //生成函数名
+						window[name] = that.$echarts.init(document.getElementById("myChart" + i));
+						window[name].showLoading();
+						that.$http.post(that.global.domainurl + '/jeecg-boot/air/dayline ', {
+							date: currentdate,
+							equipmentId: res.data.result[that.num].values[i].equipment_id,
+							typeId: res.data.result[that.num].values[i].type_id
+						}).then(resson => {
+							let flag=resson.data.result.valueList.find(m => m.value != null);
+							let unit=resson.data.result.unit==='无'?'':resson.data.result.unit
+							window[name].hideLoading();
+							window[name].setOption({
+								legend: {
+									data: [res.data.result[that.num].values[i].typeName + '(' + resson.data.result.unit + ')']
+								},
+								yAxis: {
+									max:resson.data.result.max,
+									type : 'value',
+									axisLabel: {
+										formatter:'{value}'+' '+unit
+									}
+								},
+								series: [{
+									// 根据名字对应到相应的系列
+									name: res.data.result[that.num].values[i].typeName + '(' + resson.data.result.unit + ')',
+									data: resson.data.result.valueList
+								}]
+							});
+							let isnodata=JSON.parse(JSON.stringify(that.isnodata)) ;
+							if(flag){						
+								isnodata[i]=false;
+								that.isnodata=isnodata;
+							}else{
+								isnodata[i]=true;
+								that.isnodata=isnodata;
+							}
+							
+						})
+					}
+					console.log(that.isnodata)
+				})
+			},
+			changeRightTop(item,indx){
+				this.num=indx
+				this.changecharts(this.res)
+			},
 			videoHeight() {
-				//  	this.$nextTick(()=>{
-				//  		console.log(this.$refs.video)
-				//			let vidoeWidth=this.$refs.video.clientWidth;
-				//			this.$refs.video.style.height = vidoeWidth*0.54+'px';
-				//			this.height=window.innerHeight
-				//  	})
+			  	this.$nextTick(()=>{
+					this.height=window.innerHeight
+			  	})
 
 			},
 			//点击隧道
 			handlelistpre(item, indx) {
-				console.log(item)
 				//点击常规隧道项，因为常规隧道都没有children
 				if(item.children) {
-					//				this.show3d=false
+					//	this.show3d=false
 					if(item.children.length === 0) {
 						this.$message({
 							showClose: true,
 							message: '此工地咱无视频监控'
 						});
 					} else if(item.children.length > 0) {
-						let list = this.list
+						let list =JSON.parse(JSON.stringify(this.list)) 
 						list[indx].ispull = !list[indx].ispull
 						localStorage.setItem("listnorm", JSON.stringify(list));
 						this.list = list
@@ -241,97 +326,48 @@
 				}
 
 			},
-			// 	获取初始有多少个chart,获取chart初始数据，默认展示b1鸡鸣隧道出口的第一个（出口值班室） 的数据
+			//获取初始有多少个chart,获取chart初始数据，默认展示b1鸡鸣隧道出口的第一个（出口值班室） 的数据
 			chartstart() {
 				let that = this;
-
-				that.$http.post(that.global.domainurl + '/jeecg-boot/air/environmentalmonitoring ', {
+				this.loadingshow = true;
+			//	a0341955d5e77bbc56281a116d8752e1是b1鸡鸣隧道出口出口值班室的id
+				this.$http.post(that.global.domainurl + '/jeecg-boot/air/environmentalmonitoring', {
 					engineeringId: 'a0341955d5e77bbc56281a116d8752e1'
 				}).then(res => {
-					console.log(res)
-					this.righttop = res.data.result;
-					let chartidlist = this.chartidlist;
-					console.log(res.data.result[0].values.length)
-					for(let i = 0, n = res.data.result[0].values.length; i < n; i++) {
-						console.log(1)
-						var name = "myChart" + i; //生成函数名						
-						chartidlist.push("myChart" + i)
+					this.loadingshow = false
+					if(res.data.code === 0) {
+						that.res=res
+						that.changecharts(res)
+						console.log(that.res)
+					} else if(res.data.code === 500) {
+						this.$message({
+							showClose: true,
+							message: res.data.message,
+							type: 'error'
+						});
 					}
-					//这一步确定有多少个chart
-					that.chartidlist = chartidlist
-					that.$nextTick(() => {
-						that.drawLine();
-//						let myChart0 = this.$echarts.init(document.getElementById("myChart0"));
-//						let myChart1 = this.$echarts.init(document.getElementById("myChart1"));
-//						let myChart2 = this.$echarts.init(document.getElementById("myChart2"));
-//						let myChart3 = this.$echarts.init(document.getElementById("myChart3"));
-//						let myChart4 = this.$echarts.init(document.getElementById("myChart4"));
-//						let myChart5 = this.$echarts.init(document.getElementById("myChart5"));
-//						let myChart6 = this.$echarts.init(document.getElementById("myChart6"));
-						console.log(chartidlist)
-						//默认进来先进入鸡鸣隧道出口的第一个（出口值班室） 的数据，所以是res.data.result[0]，注意以后会不会更改
-						for(let i = 0, l = res.data.result[0].values.length; i < l; i++) {
-							let name = "myChart" + i; //生成函数名
-							window[name]=that.$echarts.init(document.getElementById("myChart"+i));
-							window[name].showLoading();
-							that.$http.post(that.global.domainurl + '/jeecg-boot/air/dayline ', {
-								date: "2019-11-28",
-								equipmentId:res.data.result[0].values[i].equipment_id ,
-								typeId: res.data.result[0].values[i].type_id
-							}).then(resson => {
-								console.log(res)
-								window[name].hideLoading();
-								window[name].setOption({
-									legend: {
-										data: [ res.data.result[0].values[i].typeName+'('+resson.data.result.unit+')']
-									},
-									series: [{
-										// 根据名字对应到相应的系列
-										name: res.data.result[0].values[i].typeName+'('+resson.data.result.unit+')',
-										data: resson.data.result.valueList
-									}]
-								});
-							})
-						}
-
-					})
+				}).catch(function(error) {
+					console.log(error)
 				})
+				
+			},
+			//获取今天的日期并且格式化
+			getdate(){
+                let nowDate = new Date();
+                let date = {
+                    year: nowDate.getFullYear(),
+                    month: nowDate.getMonth() + 1,
+                    date: nowDate.getDate(),
+                }
+                let mt=date.month<10?'0'+date.month: date.month
+                return date.year + '-' + mt+ '-' + 0 + date.date;
 			},
 			//初始化各个chart
-			drawLine() {
-				// 基于准备好的dom，初始化echarts实例
-				if(this.$refs.myChart0) {
-					let myChart0 = this.$echarts.init(document.getElementById("myChart0"));
-					myChart0.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-
-				}
-				if(this.$refs.myChart1) {
-					let myChart1 = this.$echarts.init(document.getElementById("myChart1"));
-					myChart1.setOption({
+			drawLine(lth) {
+				for(let i=0;i<lth;i++){
+					let name='myChart'+i;
+					window[name]=this.$echarts.init(document.getElementById("myChart"+i));
+					window[name].setOption({
 						tooltip: {
 							trigger: 'axis',
 							axisPointer: {
@@ -357,232 +393,39 @@
 						}]
 					});
 				}
-				if(this.$refs.myChart2) {
-					let myChart2 = this.$echarts.init(document.getElementById("myChart2"));
-					myChart2.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
+			},
+			//各个chart日期变化后的接口请求和展示
+			datechange(itemson,index){
+				let that=this,name='myChart'+index;
+				window[name] = this.$echarts.init(document.getElementById("myChart" + index));
+				window[name].showLoading();
+				this.$http.post(that.global.domainurl + '/jeecg-boot/air/dayline ', {
+					date: this.values[index],
+					equipmentId: this.righttop[this.num].values[index].equipment_id,
+					typeId: this.righttop[this.num].values[index].type_id
+				}).then(resson => {
+					window[name].hideLoading();
+					let flag=resson.data.result.valueList.find(m => m.value != null)
+					window[name].hideLoading();
+					window[name].setOption({
+						legend: {
+							data: [that.righttop[that.num].values[index].typeName + '(' + resson.data.result.unit + ')']
 						},
 						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
+							// 根据名字对应到相应的系列
+							name: that.righttop[that.num].values[index].typeName + '(' + resson.data.result.unit + ')',
+							data: resson.data.result.valueList
 						}]
 					});
-				}
-				if(this.$refs.myChart3) {
-					let myChart3 = this.$echarts.init(document.getElementById("myChart3"));
-					myChart3.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-				if(this.$refs.myChart4) {
-					let myChart4 = this.$echarts.init(document.getElementById("myChart4"));
-					myChart4.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-				if(this.$refs.myChart5) {
-					let myChart5 = this.$echarts.init(document.getElementById("myChart5"));
-					myChart5.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-				if(this.$refs.myChart6) {
-					let myChart6 = this.$echarts.init(document.getElementById("myChart6"));
-					myChart6.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-
-				}
-				if(this.$refs.myChart7) {
-					let myChart7 = this.$echarts.init(document.getElementById("myChart7"));
-					myChart7.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-				if(this.$refs.myChart8) {
-					let myChart8 = this.$echarts.init(document.getElementById("myChart8"));
-					myChart8.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-				if(this.$refs.myChart9) {
-					let myChart9 = this.$echarts.init(document.getElementById("myChart9"));
-					myChart9.setOption({
-						tooltip: {
-							trigger: 'axis',
-							axisPointer: {
-								type: 'cross',
-								crossStyle: {
-									color: '#999'
-								}
-							}
-						},
-						xAxis: {
-							type: 'category',
-							data: ['0:00', '1:00', '2:00', '3:00', '4:00', '5:00', '6:00', '7:00', '8:00', '9:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00', '23:00']
-						},
-						yAxis: {
-							type: 'value',
-
-						},
-						series: [{
-							data: [],
-							type: 'line',
-							smooth: true,
-							name: '',
-						}]
-					});
-				}
-
+					let isnodata=JSON.parse(JSON.stringify(that.isnodata)) ;
+					if(flag){						
+						isnodata[index]=false;
+						that.isnodata=isnodata;
+					}else{
+						isnodata[index]=true;
+						that.isnodata=isnodata;
+					}
+				})
 			}
 		}
 	}
@@ -594,11 +437,11 @@
 		padding: 0 rem(30);
 		position: relative;
 	}
-	
+	#envircont span{text-align: center;}
 	#myChart {
 		border-bottom: rem(1) solid $line_color;
 	}
-	
+	canvas{width: 550px;}
 	.title {
 		position: absolute;
 		left: 44%;
@@ -694,6 +537,7 @@
 		cursor: pointer;
 		height: 0;
 		opacity: 0;
+		text-align: left;
 		transition: all 0.3s linear;
 	}
 	
@@ -709,13 +553,13 @@
 		color: rgb(230, 162, 60, 0.6);
 	}
 	
-	#videocont .itemsontxtxiala {
+	#envircont .itemsontxtxiala {
 		height: 25px;
 		line-height: 25px;
 		opacity: 1;
 	}
 	
-	#videocont .righticonxiala {
+	#envircont .righticonxiala {
 		transform: rotate(90deg);
 	}
 	
@@ -784,7 +628,7 @@
 	}
 	
 	.righttopson {
-		background: rgba(64, 158, 255, 0.8);
+		background: rgba(144,147,153,0.5);
 		padding: 10px 20px;
 		border-radius: 10px;
 		color: #FFFFFF;
@@ -792,4 +636,22 @@
 		font-weight: bold;
 		margin-left: 100px;
 	}
+	
+	.chartitem {
+		position: relative;
+		margin:0 10px 50px 0;
+	}
+	
+	.datepicker {
+		position: absolute;
+		top: -10px;
+		right: 30px;
+		width: 140px;
+	}
+	.datenodata{position: absolute;
+		top: 50%;text-align: center;
+		left: 50%;transform: translateX(-50%) translateY(-50%);
+	}
+	.righttopsonactive{box-shadow: 1px 1px 10px 1px rgba(64, 158, 255, 0.8);background: rgba(64, 158, 255, 0.9);}
+	.current{position: absolute;top: 0;left: 50px;font-size: 13px}
 </style>

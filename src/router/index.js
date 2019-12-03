@@ -10,5 +10,13 @@ export default new VueRouter({
         { path: "/video", component: Video },
         { path: "/envir", component: Envir },
          { path: "*", redirect: "/home" }
-    ]
+    ],
+    mode: 'hash',
+    scrollBehavior (to, from, savedPosition){
+	    if (savedPosition) {
+	      return savedPosition
+	    } else {
+	      return { x: 0, y: 0 }
+	    }
+	  }
 })
