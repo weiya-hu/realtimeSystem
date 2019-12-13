@@ -1,6 +1,6 @@
 <template>
 	<div class="videoVue" id="envircont">
-		<div class="left" :style="{height: height+'px'}">
+		<div class="left" :style="'height:'+height">
 			<div class="select flex">
 				<el-radio v-model="radio" label="1" @change='selectchange'>常规列表</el-radio>
 				<el-radio v-model="radio" label="2" @change='selectchange'>3D列表</el-radio>
@@ -26,13 +26,13 @@
 		<div class="right" v-if="show3d">
 			<iframe :src="list[num3d].vraddress" :height="height" allowfullscreen="true" allowtransparency="true" style="width: 100%;"></iframe>
 		</div>
-		<div class="right flexl" :class="show3d?'width':''">
+		<div class="right" :class="show3d?'width':''" :style="'height:'+height">
 			<div class="righttop flexl">
 				<div class="righttopson " :class="indx==num?'righttopsonactive':''" v-for="(item,indx) in righttop" @click="changeRightTop(item,indx)">{{item.name}}</div>
 			</div>
 			<div class="chartpre">
-				<div class="chartitem" style="width: 550px;" v-for="(itemson,index) in chartidlist">
-					<div :id="chartidlist[index]" :style="{ height: '300px',width:'550px'}" :ref='chartidlist[index]'></div>
+				<div class="chartitem" style="width: 650px;" v-for="(itemson,index) in chartidlist">
+					<div :id="chartidlist[index]" :style="{ height: '300px',width:'700px'}" :ref='chartidlist[index]'></div>
 					<el-date-picker value-format='yyyy-MM-dd'  v-model="values[index]" align="right" type="date" placeholder="选择日期" :picker-options="pickerOptions" class='datepicker' @change='datechange(itemson,index)'></el-date-picker>
 					<div class="datenodata" v-if="isnodata[index]">当前所选择日期暂无数据</div>
 					<div class="current">
@@ -89,7 +89,6 @@
 					}]
 				},
 				values: [],//各个chart的日期
-				value: '',
 				isnodata:[],//每个chart是否显示无数据
 				currentdate:'',//当前日期
 			}
@@ -97,22 +96,28 @@
 		mounted() {
 			//执行下面的函数
 			this.list = this.getnormlist();
-			this.get3dlist()
-			this.value=new Date()
+			this.get3dlist();
+			this.UrlSearch();
+			this.videoHeight()
 		},
 		created() {
-			this.chartstart()
-			window.removeEventListener('resize', this.videoHeight())
+			let that=this;
+	        window.addEventListener('resize', function(){
+				that.height=(document.documentElement.clientHeight).toFixed(2)+'px';
+	        });
 		},
 		destroyed() {
-			window.removeEventListener('resize', this.videoHeight())
+			let that=this;
+		    window.removeEventListener('resize', function(){
+				that.height=(document.documentElement.clientHeight).toFixed(2)+'px';
+		    })
 		},
 		methods: {
 			//获取常规标段列表
 			getnormlist() {
 				let that = this
 				this.$http.post(that.global.domainurl + '/jeecg-boot/replace/getBidsectionListByTypeAndBelong ', {
-					username: 'admin',
+					username: that.UrlSearch(),
 					identify: 'nomal',
 					menu: '环境监测'
 				}).then(res => {
@@ -125,12 +130,15 @@
 								//给常规list下每一项的children添加isactive=false，isactive=true的时候是被选中的状态
 								for(let j = 0, th = arr[i].children.length; j < th; j++) {
 									arr[i].children[j].isactive = false
-									if(arr[i].children[j].id === 'a0341955d5e77bbc56281a116d8752e1') {
-										//默认有打开一个，默认项有下拉，默认项又被选中的状态,默认的这一项数据较多所以选这一项
-										arr[i].ispull = true
-										arr[i].children[j].isactive = true;
-									}
+//									if(arr[i].children[j].id === 'a0341955d5e77bbc56281a116d8752e1') {
+//										//默认有打开一个，默认项有下拉，默认项又被选中的状态,默认的这一项数据较多所以选这一项
+//										arr[i].ispull = true
+//										arr[i].children[j].isactive = true;
+//									}
 								}
+								arr[0].ispull = true
+								arr[0].children[0].isactive = true;
+								that.chartstart(arr[0].children[0].id)
 							}
 						}
 						that.list = arr
@@ -146,7 +154,7 @@
 			get3dlist() {
 				let that = this
 				this.$http.post(that.global.domainurl + '/jeecg-boot/replace/getBidsectionListByTypeAndBelong ', {
-					username: 'admin',
+					username: that.UrlSearch(),
 					identify: '3d',
 					menu: '环境监测'
 				}).then(res => {
@@ -165,6 +173,17 @@
 					console.log(error)
 				})
 			},
+			UrlSearch(){
+		        let url = window.location.href;
+//		        let url='http://kaijin.zhoumc.cn/dist/#/envir?username=admin'
+		        let m=url.split('?')[1].split('&')
+		        let obj={}
+		        for(let i=0;i<m.length;i++){
+		          let a=m[i].split('=')
+		          obj[a[0]]=a[1]
+		        }
+		        return obj.username
+		    },
 			//radio==='2'为3d，'1'为常规默认
 			selectchange() {
 				let that = this;
@@ -229,7 +248,7 @@
 			changecharts(res){
 				this.righttop = res.data.result;
 				let chartidlist = [],isnodata=[],values=[],that=this;
-				let currentdate=that.getdate()
+				let currentdate=this.getdate()
 				//这里才能确定展示多少个chart
 				for(let i = 0, n = res.data.result[that.num].values.length; i < n; i++) {
 					var name = "myChart" + i; //生成函数名						
@@ -268,11 +287,13 @@
 										formatter:'{value}'+' '+unit
 									}
 								},
-								series: [{
+								series: [
 									// 根据名字对应到相应的系列
+									{
+									type:'line',	
 									name: res.data.result[that.num].values[i].typeName + '(' + resson.data.result.unit + ')',
-									data: resson.data.result.valueList
-								}]
+									data: resson.data.result.valueList}
+								]
 							});
 							let isnodata=JSON.parse(JSON.stringify(that.isnodata)) ;
 							if(flag){						
@@ -294,9 +315,8 @@
 			},
 			videoHeight() {
 			  	this.$nextTick(()=>{
-					this.height=window.innerHeight
+					this.height=(document.documentElement.clientHeight).toFixed(2)+'px';
 			  	})
-
 			},
 			//点击隧道
 			handlelistpre(item, indx) {
@@ -327,12 +347,12 @@
 
 			},
 			//获取初始有多少个chart,获取chart初始数据，默认展示b1鸡鸣隧道出口的第一个（出口值班室） 的数据
-			chartstart() {
+			chartstart(id) {
 				let that = this;
 				this.loadingshow = true;
 			//	a0341955d5e77bbc56281a116d8752e1是b1鸡鸣隧道出口出口值班室的id
 				this.$http.post(that.global.domainurl + '/jeecg-boot/air/environmentalmonitoring', {
-					engineeringId: 'a0341955d5e77bbc56281a116d8752e1'
+					engineeringId: id
 				}).then(res => {
 					this.loadingshow = false
 					if(res.data.code === 0) {
@@ -359,8 +379,9 @@
                     month: nowDate.getMonth() + 1,
                     date: nowDate.getDate(),
                 }
-                let mt=date.month<10?'0'+date.month: date.month
-                return date.year + '-' + mt+ '-' + 0 + date.date;
+                let mt=date.month<10?'0'+date.month: date.month;
+                let day=date.date<10?'0'+date.date: date.date;
+                return date.year + '-' + mt+ '-' +day;
 			},
 			//初始化各个chart
 			drawLine(lth) {
@@ -441,7 +462,7 @@
 	#myChart {
 		border-bottom: rem(1) solid $line_color;
 	}
-	canvas{width: 550px;}
+	canvas{width: 570px;}
 	.title {
 		position: absolute;
 		left: 44%;
@@ -488,7 +509,7 @@
 	}
 	
 	.listpre:hover {
-		background-color: #F5F7FA;
+		background-color: #eef0f3;
 	}
 	
 	.left {
@@ -542,7 +563,7 @@
 	}
 	
 	.itemsontxtactive {
-		background-color: #F5F7FA;
+		background-color: #eef0f3;
 	}
 	
 	.itemsontxtno {
@@ -564,14 +585,14 @@
 	}
 	
 	.itemsontxt:hover {
-		background-color: #F5F7FA;
+		background-color: #eef0f3;
 	}
 	/*list*/
 	
 	.right {
 		width: 100%;
 		position: relative;
-		overflow: hidden;
+		overflow:scroll;
 	}
 	
 	.select {
@@ -618,12 +639,12 @@
 		flex-wrap: wrap;
 		justify-content: flex-start;
 		align-content: flex-start;
-		margin-top: 100px;
+		margin-top: 150px;
 	}
 	
 	.righttop {
 		position: absolute;
-		top: 20px;
+		top: 30px;
 		left: 0;
 	}
 	
@@ -653,5 +674,5 @@
 		left: 50%;transform: translateX(-50%) translateY(-50%);
 	}
 	.righttopsonactive{box-shadow: 1px 1px 10px 1px rgba(64, 158, 255, 0.8);background: rgba(64, 158, 255, 0.9);}
-	.current{position: absolute;top: 0;left: 50px;font-size: 13px}
+	.current{position: absolute;top: 0;left: 50px;font-size: 13px;background: rgba(194, 53, 49,0.8);color: #FFFFFF;padding: 2px 8px;border-radius: 4px;}
 </style>

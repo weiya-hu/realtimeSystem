@@ -1,6 +1,6 @@
 <template>
 	<div class="videoVue" id="videocont">
-		<div class="left" :style="{height: height+'px'}">
+		<div class="left" :style="'height:'+height">
 			<div class="select flex">
 				<el-radio v-model="radio" label="1" @change='selectchange'>常规列表</el-radio>
   				<el-radio v-model="radio" label="2" @change='selectchange'>3D列表</el-radio>
@@ -28,7 +28,7 @@
 		</div>
 		<div class="right" :class="show3d?'width':''">
 			<div  ref='video'> 
-			   <video id="videobox" class="video-js vjs-default-skin vjs-big-play-centered " controls webkit-playsinline="true" playsinline="true" type="application/x-mpegURL"   width='100%' ref='videoRef' x5-video-player-fullscreen="true" :poster="posterSrc"  allowsInlineMediaPlayback=YES  webview.allowsInlineMediaPlayback=YES>
+			   <video id="videobox" class="video-js vjs-default-skin vjs-big-play-centered " controls='true' webkit-playsinline="true" playsinline="true" type="application/x-mpegURL"   width='100%' ref='videoRef' x5-video-player-fullscreen="true" :poster="posterSrc"  allowsInlineMediaPlayback=YES  webview.allowsInlineMediaPlayback=YES>
 			      <source id="sourceBox" :src="videoSrc">
 			      <p class="vjs-no-js">不支持播放</p>
 			   </video>
@@ -44,6 +44,7 @@
 <script>
 import videojs from 'video.js'
 import 'videojs-contrib-hls'
+import _ from 'lodash'
 export default {
   name:'Video',
   data () {
@@ -54,58 +55,62 @@ export default {
 		    label: 'name'
 		},
       	radio: '1',
-      	videoSrc:'http://kj.rsltek.com:8080/stream/xjw-rsltek-com-50001-streaming-channels-402/index.m3u8',
-		posterSrc:'https://matrimony001.100msh.net.cn/public/code/material/mp-7261-1554175849.jpg',
+      	videoSrc:'http://down.soundaer.com/live/stream_89003_sd/playlist.m3u8?k=d708550fbd49c58a1b8a8412c8623277&t=1553687908',
+		posterSrc:'',
    		isError:false,
    		loadingshow:false,//加载中是否显示
    		show3d:false,//3d页面是否显示
    		height:'',//页面高度
-   		num3d:0//3d的选中项下标
+   		num3d:0,//3d的选中项下标
+   		videoheight:'',//视频播放器高度
     }
   }, 
   mounted(){ 
       this.list=this.getnormlist();
       this.get3dlist()
-      var that=this
+      var that=this; 
+      this.videoHeight()
       var player = videojs('videobox',{
-	            bigPlayButton: true,
-	            textTrackDisplay: true,
-	            posterImage: true,
-	            errorDisplay: false,
-	            controlBar: false,
-	            playbackRates: [0.5, 1, 1.5, 2],
-	            ControlBar:{
-	                customControlSpacer: true
-	            }
-	        },
-	        function onPlayerReady(){
-	            this.play();
-	            setTimeout(() => {   //延时确保能监听到视频源错误
-	                var mediaError = this.error();
-	                if(mediaError!=null && mediaError.code){
-//	                    that.isError=true
-	                    console.log('啊哦，播放出错了。<br>请刷新重试，如无法播放建议您观看其它内容。')
-	                }
-	            },1000);
-	        });        
-             // player.width(this.videoW)   //设置播放器宽度
-             
-  },
-  beforeDestroy(){
-    const videoDom = this.$refs.videoRef;   //不能用document 获取节点
-    videojs(videoDom).dispose();  //销毁video实例，避免出现节点不存在 但是flash一直在执行,也避免重新进入页面video未重新声明
-  },
-  created(){
-    window.removeEventListener('resize', this.videoHeight())
+        bigPlayButton: true,
+        textTrackDisplay: true,
+        posterImage:true,
+        errorDisplay: false,
+        controlBar:true,
+        playbackRates: [0.5, 1, 1.5, 2],
+        ControlBar:{
+            customControlSpacer: true
+        }},
+        function onPlayerReady(){
+            setTimeout(() => {   //延时确保能监听到视频源错误
+                var mediaError = this.error();
+                if(mediaError!=null && mediaError.code){
+                    console.log('啊哦，播放出错了。<br>请刷新重试，如无法播放建议您观看其它内容。')
+                }
+            },1000);
+        }
+	);            
   },
   destroyed(){
-    window.removeEventListener('resize', this.videoHeight())
+    const videoDom = this.$refs.videoRef;   //不能用document 获取节点
+    videojs(videoDom).dispose();  //销毁video实例，避免出现节点不存在 但是flash一直在执行,也避免重新进入页面video未重新声明
+    let that=this;
+    window.removeEventListener('resize', function(){
+       that.$refs.video.style.height =(document.documentElement.clientHeight).toFixed(2)+'px';
+		that.height=(document.documentElement.clientHeight).toFixed(2)+'px';
+    })
   },
+    created(){
+        let that=this;
+        window.addEventListener('resize', function(){
+            that.$refs.video.style.height =(document.documentElement.clientHeight).toFixed(2)+'px';
+			that.height=(document.documentElement.clientHeight).toFixed(2)+'px';
+        });
+    },
   methods:{
   	//获取常规标段列表
   	getnormlist(){
   		let that=this
-  		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getVideoTree',{username:'admin'}).then(res=>{
+  		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getVideoTree',{username:that.UrlSearch()}).then(res=>{
   			if(res.data.code===200){
   				let arr=res.data.result
   				//给常规list下每一项添加ispull=false，开始都没有下拉，ispull=true当前项下拉
@@ -115,20 +120,12 @@ export default {
   						//给常规list下每一项的children添加isactive=false，isactive=true的时候是被选中的状态
   						for(let j=0,th=arr[i].children.length;j<th;j++){
   							arr[i].children[j].isactive=false
-  							if(arr[i].children[j].id==='487c2af612b234df44216b82607f81bf'){
-  								//默认有打开一个视频，自认默认项有下拉，默认项又被选中的状态
-	  							arr[i].ispull=true
-	  							arr[i].children[j].isactive=true
-	  						}
   						}
-  						
   					}
   				}
-  				
 				that.list=arr
 				//存入内存，下次点击切换先查看内存中是否有，没有才请求接口获取
 				localStorage.setItem("listnorm",JSON.stringify(arr));
-				console.log(arr)
 				return arr
   			}
   		}).catch(function (error){
@@ -138,9 +135,8 @@ export default {
   	//获取3d标段列表
   	get3dlist(){
   		let that=this
-  		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getBidsectionList',{username:'admin',identify:'thingjs'}).then(res=>{
+  		this.$http.post(that.global.domainurl+'/jeecg-boot/replace/getBidsectionList',{username:that.UrlSearch(),identify:'3d'}).then(res=>{
   			if(res.data.code===200){
-				console.log(res.data.result)
 				let arr=res.data.result;
 				//3dlist里面默认每一项都没有选中，active=true为选中状态
 				for(let i=0,l=arr.length;i<l;i++){
@@ -155,6 +151,17 @@ export default {
           console.log(error)
         })
   	},
+  	UrlSearch(){
+		let url = window.location.href;
+//      let url='http://kaijin.zhoumc.cn/dist/#/video?username=admin'
+        let m=url.split('?')[1].split('&')
+        let obj={}
+        for(let i=0;i<m.length;i++){
+          let a=m[i].split('=')
+          obj[a[0]]=a[1]
+        }
+        return obj.username
+    },
   	//radio==='2'为3d，'1'为常规默认
   	selectchange(){
   		let that=this;
@@ -173,14 +180,6 @@ export default {
 			}
 		}else if(this.radio==='1'){
 			this.show3d=false
-			
-			this.$nextTick(()=>{
-	    		const videoDom = this.$refs.videoRef;
-				console.log(videoDom)
-				videoDom.play();
-	    	})
-			
-	        
 			let listnorm=localStorage.getItem("listnorm")
 			if (listnorm){
 				this.list=JSON.parse(listnorm)
@@ -188,13 +187,12 @@ export default {
 			}else{
 				this.list=this.getnormlist()
 				console.log(this.list)
-			}
-			
+			}			
 		}
 		console.log(this.list)
   	},
-  	//
-  	handleNodeClick(data,indx,index) {
+  	//点击隧道内视频点,_.debounce防抖
+  	handleNodeClick:_.debounce(function(data,indx,index) {
   		let arr=this.list;
   		for(let i=0,l=arr.length;i<l;i++){
 			if(arr[i].children.length>0){
@@ -219,7 +217,7 @@ export default {
 			if(res.data.code===200){
 				this.$message({
 		            showClose: true,
-		            message: '视频地址获取成功',
+		            message: data.name+'  视频地址获取成功',
 		            type: 'success'
 		        });
 				videojs(videoDom).src(res.data.result)
@@ -242,13 +240,12 @@ export default {
           console.log(error)
        })
 
-     },
+     },500),
     videoHeight(){
     	this.$nextTick(()=>{
     		console.log(this.$refs.video)
-			let vidoeWidth=this.$refs.video.clientWidth;
-			this.$refs.video.style.height = vidoeWidth*0.54+'px';
-			this.height=window.innerHeight
+			this.$refs.video.style.height =(document.documentElement.clientHeight).toFixed(2)+'px';
+			this.height=(document.documentElement.clientHeight).toFixed(2)+'px';
     	})
 
 	},
@@ -291,7 +288,7 @@ export default {
 .videoVue{display: flex;justify-content: flex-start;align-items: flex-start;}
 /*list*/
 .listpre{padding: 3px 0 3px 5px;cursor: pointer;}
-.listpre:hover{background-color: #F5F7FA;}
+.listpre:hover{background-color: #eef0f3;}
 .left{width:250px;padding:0 5px 10px 10px;border-right: 1px solid #eee;border-bottom: 1px solid #eee;overflow: scroll;
 	box-sizing: border-box;margin-right: 5px;}
 .list{overflow-y: scroll;overflow-x: auto;}
@@ -300,13 +297,13 @@ export default {
 .righticon{width: 9px;overflow: hidden;margin-right: 2px;transition: all 0.3s linear;}
 .itemsontxt{color: #606266;font-size: 14px;padding: 0 0 0 35px;overflow: hidden;text-overflow:ellipsis;white-space: nowrap;cursor: pointer;
 	height: 0;opacity: 0;transition: all 0.3s linear;text-align: left;}
-.itemsontxtactive{background-color: #F5F7FA;}
+.itemsontxtactive{background-color: #eef0f3;}
 
 .itemsontxtno{color: rgba(144,147,153,0.5);}
 .itemsontxtwarn{color:rgb(230, 162, 60,0.6) ;}
 #videocont .itemsontxtxiala{height: 25px;line-height: 25px;opacity: 1;}
 #videocont .righticonxiala{transform: rotate(90deg);}
-.itemsontxt:hover{background-color: #F5F7FA;}
+.itemsontxt:hover{background-color: #eef0f3;}
 /*list*/
 .right{width: 100%;position: relative;}
 .select{border: 1px solid #eee;width: 200px;padding: 0 10px;box-sizing: border-box;}
